@@ -1,15 +1,11 @@
-use std::ffi::{CStr, CString};
-use std::ops::Deref;
+use std::ffi::{CStr};
 use std::ptr;
 use winapi::shared::minwindef::{DWORD, FALSE};
-use winapi::um::processthreadsapi::{GetCurrentProcess, OpenProcess};
+use winapi::um::processthreadsapi::{OpenProcess};
 use winapi::um::winnt::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
-use winapi::um::psapi::{EnumProcessModules, GetModuleBaseNameA};
+use winapi::um::psapi::{GetModuleBaseNameA};
 use winapi::um::winnt::{HANDLE, LPCSTR, LPSTR, PROCESS_ALL_ACCESS};
 use winapi::shared::minwindef::MAX_PATH;
-use winapi::um::memoryapi::ReadProcessMemory;
-use winapi::um::winnt::MEMORY_BASIC_INFORMATION;
-use winapi::um::memoryapi::VirtualQueryEx;
 
 pub fn memory_parser<'a>(pattern: &str, max_address: usize, process_name: &str, pattern_writer: Option<f32>, pattern_wslice: Option<&str>) -> Result<(usize, usize), &'a str> {
   let pid = get_pid(process_name);
@@ -23,8 +19,8 @@ pub fn memory_parser<'a>(pattern: &str, max_address: usize, process_name: &str, 
     for address in scan_result.0 {
       println!("changed 0x{:X}", &address);
 
-      if let Some(pattern_writter) = pattern_writer {
-        let value_bytes = pattern_writter.to_le_bytes();
+      if pattern_writer.is_some() {
+        let value_bytes = pattern_writer.unwrap().to_le_bytes();
         write_array(process_handle, address, value_bytes.to_vec().as_slice());
       }
 
@@ -113,7 +109,7 @@ fn get_process_name(process_id: DWORD) -> Option<String> {
             module_handles[i as usize],
             module_name.as_mut_ptr() as LPSTR,
             std::mem::size_of_val(&module_name) as DWORD,
-          ) != FALSE.try_into().unwrap()
+          ) != FALSE as u32
           {
             let name = CStr::from_ptr(module_name.as_ptr() as LPCSTR).to_string_lossy().into_owned();
             return Some(name);
@@ -196,8 +192,6 @@ fn scan_array(pid: DWORD, pattern: &[u8], max_addresses: usize) -> (Vec<usize>, 
 
   (addresses, scan_quantity)
 }
-
-
 
 fn write_array(process_handle: HANDLE, address: usize, data: &[u8]) {
   let mut old_protect: winapi::shared::minwindef::DWORD = 0;
